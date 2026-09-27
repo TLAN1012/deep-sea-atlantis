@@ -1,0 +1,214 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>深海秘境</title>
+<meta name="theme-color" content="#06223a">
+<style>
+  :root {
+    --ink: #0d2238; --paper: #fffaf0; --sea: #0a3d62; --gold: #ffc93c; --coral: #ff7b54; --mint: #6ee7d8;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: #031424; color: #fff; overflow: hidden; touch-action: none;
+    font-family: "Baloo 2", "jf open 粉圓", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+    -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .vignette { position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 10, 25, .55) 100%); }
+  button { font: inherit; cursor: pointer; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px 0; }
+  #hud[hidden] { display: none; }
+  .pill { display: inline-flex; align-items: center; gap: .45em; background: rgba(6, 30, 52, .62); border: 2px solid rgba(255, 255, 255, .18);
+    border-radius: 999px; padding: .3em .85em; font-weight: 700; backdrop-filter: blur(4px); font-size: 15px; }
+  #tl { position: absolute; left: 14px; top: calc(env(safe-area-inset-top, 0px) + 12px); display: grid; gap: 6px; justify-items: start; }
+  #tr { position: absolute; right: 14px; top: calc(env(safe-area-inset-top, 0px) + 12px); display: grid; gap: 6px; justify-items: end; }
+  #mini { width: 150px; height: 150px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .75); pointer-events: auto; cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .45); background: #0a3d62; }
+  @media (max-height: 500px), (max-width: 500px) { #mini { width: 112px; height: 112px; } }
+  #depth b { font-size: 22px; font-variant-numeric: tabular-nums; }
+  #zone { color: var(--mint); }
+  #o2wrap { width: 150px; }
+  #o2wrap[hidden] { display: none !important; }
+  #o2bar { flex: 1; height: 10px; border-radius: 6px; background: rgba(255, 255, 255, .15); overflow: hidden; }
+  #o2fill { height: 100%; width: 100%; background: linear-gradient(90deg, #4cc9f0, #80ffdb); transition: width .3s; }
+  #o2wrap.low #o2fill { background: #ff5d5d; animation: blink .6s infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  #reticle { position: absolute; left: 50%; top: 50%; width: 76px; height: 76px; margin: -38px 0 0 -38px; opacity: .55; transition: all .2s; }
+  #reticle.lock { opacity: 1; transform: scale(.85); }
+  #reticle.lock path { stroke: var(--gold); }
+  #lockname { position: absolute; left: 50%; top: calc(50% + 46px); transform: translateX(-50%); font-weight: 700; font-size: 14px;
+    text-shadow: 0 1px 3px #000; color: var(--gold); white-space: nowrap; }
+  #toast { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); padding: .55em 1.2em; border-radius: 16px; font-weight: 700;
+    background: rgba(6, 30, 52, .8); border: 2px solid rgba(255, 255, 255, .25); font-size: 17px; opacity: 0; transition: opacity .35s;
+    text-align: center; max-width: 86vw; }
+  #toast.show { opacity: 1; }
+  #hint { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); transform: translateX(-50%); font-size: 13px;
+    opacity: .75; white-space: nowrap; text-shadow: 0 1px 2px #000; }
+  #compass { position: absolute; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 14px); transform: translateX(-50%); }
+  #arrow { width: 38px; height: 38px; display: block; margin: 0 auto; transition: opacity .3s; filter: drop-shadow(0 2px 3px #000); }
+  #relicdist { font-size: 12px; text-align: center; font-weight: 700; color: var(--mint); text-shadow: 0 1px 2px #000; }
+  #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .5s; }
+  #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .6s; }
+
+  /* ---------- buttons ---------- */
+  #btns { position: fixed; right: calc(env(safe-area-inset-right, 0px) + 14px); bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    display: grid; grid-template-columns: repeat(3, auto); gap: 10px; justify-items: center; align-items: end; }
+  #btns[hidden] { display: none; }
+  .rb { width: 58px; height: 58px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .7); background: rgba(6, 30, 52, .6);
+    color: #fff; font-size: 24px; display: grid; place-items: center; backdrop-filter: blur(4px); touch-action: none; padding: 0; position: relative; }
+  .rb small { position: absolute; bottom: -17px; font-size: 11px; font-weight: 700; white-space: nowrap; text-shadow: 0 1px 2px #000; }
+  .rb.big { width: 76px; height: 76px; font-size: 32px; background: rgba(255, 201, 60, .85); border-color: #fff; color: var(--ink); }
+  .rb.on { background: rgba(255, 243, 176, .9); color: var(--ink); }
+  .rb:active { transform: scale(.92); }
+  #topbtns { position: fixed; left: 14px; top: calc(env(safe-area-inset-top, 0px) + 96px); display: grid; grid-auto-flow: column; gap: 12px; }
+  #topbtns .rb { width: 48px; height: 48px; font-size: 20px; }
+  #topbtns[hidden] { display: none; }
+  #joy { position: fixed; width: 120px; height: 120px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .45);
+    background: rgba(255, 255, 255, .08); pointer-events: none; display: none; }
+  #joy i { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px; border-radius: 50%; background: rgba(255, 255, 255, .55); }
+  body.desktop .touchonly { display: none !important; }
+  body:not(.desktop) .deskonly { display: none !important; }
+
+  /* ---------- panels ---------- */
+  .overlay { position: fixed; inset: 0; background: rgba(2, 16, 30, .78); backdrop-filter: blur(6px); display: flex; align-items: center;
+    justify-content: center; padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px); z-index: 10; }
+  .overlay[hidden] { display: none; }
+  .panel { background: var(--paper); color: var(--ink); border-radius: 26px; border: 4px solid var(--ink); box-shadow: 0 8px 0 var(--ink);
+    width: min(920px, 100%); max-height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+  .panel header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: var(--gold);
+    border-bottom: 4px solid var(--ink); gap: 10px; }
+  .panel h2 { margin: 0; font-size: 22px; }
+  .close { border: 3px solid var(--ink); background: #fff; border-radius: 999px; padding: .2em .9em; font-weight: 800; color: var(--ink); }
+  #grid { overflow-y: auto; padding: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 12px; }
+  .zoneh { grid-column: 1 / -1; font-weight: 800; margin: 6px 2px -2px; color: var(--sea); font-size: 15px; }
+  .card { border: 3px solid var(--ink); border-radius: 16px; background: linear-gradient(#bfe9ff, #7cc4ea); padding: 6px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--ink); }
+  .card.deep { background: linear-gradient(#2b4c7e, #0f2340); color: #fff; }
+  .card img { width: 100%; aspect-ratio: 4/3; object-fit: contain; }
+  .card.unknown img { filter: brightness(0) opacity(.35); }
+  .card b { font-size: 14px; }
+  #detail { padding: 0; display: grid; grid-template-columns: 1fr 1fr; }
+  #detail .art { background: linear-gradient(#bfe9ff, #5aa9d6); display: grid; place-items: center; padding: 20px; min-height: 220px; }
+  #detail .art.deep { background: radial-gradient(circle, #1f4a7a, #06142a); }
+  #detail .art img { max-width: 100%; max-height: 300px; }
+  #detail .txt { padding: 20px 22px; font-size: 16px; line-height: 1.7; }
+  #detail h3 { margin: 0 0 4px; font-size: 28px; }
+  #detail .tag { display: inline-block; background: var(--mint); border: 2px solid var(--ink); border-radius: 999px; padding: 0 .7em; font-weight: 700; font-size: 13px; }
+  @media (max-width: 640px) { #detail { grid-template-columns: 1fr; } #detail .art { min-height: 160px; } }
+  #mapwrap { padding: 14px; overflow: auto; display: grid; place-items: center; }
+  #mapc { width: min(560px, 100%); border-radius: 14px; border: 3px solid var(--ink); image-rendering: auto; }
+  .legend { font-size: 13px; padding: 0 16px 14px; display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+
+  /* ---------- title ---------- */
+  #title { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: #06223a center / cover no-repeat; text-align: center; padding: 20px; }
+  #title::before { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(3, 20, 40, .1), rgba(3, 20, 40, .15) 50%, rgba(3, 20, 40, .85)); }
+  #title > * { position: relative; }
+  #title h1 { font-size: clamp(44px, 10vw, 96px); margin: 0; color: #fff; letter-spacing: .08em;
+    -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; text-shadow: 0 6px 0 var(--ink); }
+  #title p.sub { margin: 6px 0 22px; font-size: clamp(16px, 3.4vw, 22px); font-weight: 700; text-shadow: 0 2px 4px #000; }
+  #title .go { font-size: 24px; font-weight: 800; padding: .5em 1.8em; border-radius: 999px; border: 4px solid var(--ink);
+    background: var(--gold); color: var(--ink); box-shadow: 0 6px 0 var(--ink); }
+  #title .go:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--ink); }
+  #title .go[disabled] { opacity: .6; }
+  #title .help { margin-top: 22px; font-size: 14px; line-height: 1.8; background: rgba(3, 20, 40, .6); border-radius: 16px; padding: 10px 18px; }
+  #title .help kbd { background: #fff; color: var(--ink); border-radius: 6px; padding: 0 .4em; font-family: inherit; font-weight: 700; }
+  #reset { margin-top: 10px; background: none; border: 0; color: rgba(255,255,255,.6); text-decoration: underline; font-size: 13px; }
+  #reset[hidden] { display: none; }
+  #newfind .panel { width: min(420px, 100%); text-align: center; }
+  #newfind .art { background: linear-gradient(#bfe9ff, #5aa9d6); padding: 18px; }
+  #newfind .art.deep { background: radial-gradient(circle, #1f4a7a, #06142a); }
+  #newfind img { max-width: 100%; max-height: 220px; }
+  #newfind .txt { padding: 14px 20px 20px; line-height: 1.65; }
+  #newfind h3 { margin: 0; font-size: 26px; }
+</style>
+
+<canvas id="game"></canvas>
+<div class="vignette"></div>
+
+<div id="hud" hidden>
+  <div id="tl">
+    <span class="pill" id="depth">深度 <b id="depthv">0</b> m</span>
+    <span class="pill" id="zone">珊瑚礁</span>
+    <span class="pill" id="o2wrap" hidden>🫧 <span id="o2bar"><span id="o2fill" style="display:block"></span></span></span>
+  </div>
+  <div id="tr">
+    <span class="pill">🐠 生物 <span id="codexn">0</span>/<span id="codext">0</span></span>
+    <span class="pill">🔷 石板 <span id="relicn">0</span>/5</span>
+    <canvas id="mini" width="300" height="300" title="點一下看大地圖"></canvas>
+  </div>
+  <div id="compass"><svg id="arrow" viewBox="0 0 40 40"><path d="M20 3 L31 30 L20 24 L9 30 Z" fill="#6ee7d8" stroke="#0d2238" stroke-width="3" stroke-linejoin="round"/></svg><div id="relicdist"></div></div>
+  <svg id="reticle" viewBox="0 0 76 76" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round">
+    <path d="M4 20 V4 H20 M56 4 H72 V20 M72 56 V72 H56 M20 72 H4 V56"/>
+  </svg>
+  <div id="lockname"></div>
+  <div id="toast"></div>
+  <div id="hint" class="deskonly">🖱️ 用滑鼠拖曳控制方向最順手 · W 前進 · 空白鍵/Shift 上下 · R 拍照 · F 燈 · Q 出艙/登艇 · B 圖鑑 · M 地圖</div>
+</div>
+
+<div id="topbtns" class="touchonly" hidden>
+  <button class="rb" id="bCodex">📖<small>圖鑑</small></button>
+  <button class="rb" id="bMap">🗺️<small>地圖</small></button>
+</div>
+<div id="btns" hidden>
+  <button class="rb touchonly" id="bUp">⬆<small>上升</small></button>
+  <button class="rb" id="bLamp">💡<small>燈</small></button>
+  <button class="rb" id="bExit">🚪<small id="exitLbl">出艙</small></button>
+  <button class="rb touchonly" id="bDown">⬇<small>下潛</small></button>
+  <button class="rb big" id="bShot">📷</button>
+  <span></span>
+</div>
+<div id="joy"><i></i></div>
+<div id="flash"></div>
+<div id="fade"></div>
+
+<div class="overlay" id="codex" hidden>
+  <div class="panel">
+    <header><h2>📖 海洋生物圖鑑 <span id="codexsum" style="font-size:16px"></span></h2><button class="close" id="replay" hidden>🎬 甦醒影片</button><button class="close" data-close>關閉</button></header>
+    <div id="grid"></div>
+  </div>
+</div>
+<div class="overlay" id="detailov" hidden>
+  <div class="panel" style="width:min(760px,100%)">
+    <header><h2 id="dzone"></h2><button class="close" data-close>返回</button></header>
+    <div id="detail"></div>
+  </div>
+</div>
+<div class="overlay" id="mapov" hidden>
+  <div class="panel" style="width:min(620px,100%)">
+    <header><h2>🗺️ 海域地圖</h2><button class="close" data-close>關閉</button></header>
+    <div id="mapwrap"><canvas id="mapc" width="380" height="405"></canvas></div>
+    <div class="legend"><span>🟡 你的位置</span><span>🟠 潛艇</span><span>🔷 石板</span><span>越深顏色越暗</span></div>
+  </div>
+</div>
+<div class="overlay" id="movie" hidden>
+  <div class="panel" style="width:min(980px,100%)">
+    <header><h2 id="moviecap">🎬</h2><button class="close" data-close>繼續探險</button></header>
+    <video id="moviev" playsinline controls preload="none" style="width:100%;max-height:calc(100vh - 110px);display:block;background:#000;object-fit:contain"></video>
+  </div>
+</div>
+<div class="overlay" id="newfind" hidden>
+  <div class="panel">
+    <header><h2>✨ 新發現！</h2><button class="close" data-close>太棒了</button></header>
+    <div class="art" id="nfart"><img id="nfimg" alt=""></div>
+    <div class="txt"><h3 id="nfname"></h3><div id="nfdesc"></div></div>
+  </div>
+</div>
+
+<div id="title">
+  <h1>深海秘境</h1>
+  <p class="sub">駕駛小潛艇，拍下海洋生物，找回亞特蘭提斯的五塊石板</p>
+  <p class="sub" id="progress" hidden></p>
+  <button class="go" id="start" disabled>載入中…</button>
+  <button id="reset" hidden>清除進度，重新開始</button>
+  <div class="help">
+    <div class="deskonly"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動　拖曳滑鼠 轉視角　<kbd>空白</kbd>/<kbd>Shift</kbd> 上升/下潛<br>
+      <kbd>R</kbd> 拍照　<kbd>F</kbd> 探照燈　<kbd>Q</kbd> 出艙/登艇　<kbd>B</kbd> 圖鑑　<kbd>M</kbd> 地圖</div>
+    <div class="touchonly">左手拖曳 移動　右手拖曳 轉視角　按鈕 上升/下潛・拍照・探照燈・出艙</div>
+    <div class="deskonly" style="color:#ffc93c;font-weight:700">🖱️ 小訣竅：按住滑鼠拖曳控制方向最順手——往哪裡看，按 W 就往哪裡游</div>
+    <div style="opacity:.8;margin-top:4px">把生物放進畫面中央的框框再拍照，就會收進圖鑑！右上角小地圖的 🔷 是石板、🟠 是潛艇</div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
