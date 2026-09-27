@@ -27,6 +27,7 @@ const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 900);
 function resize() {
   renderer.setSize(innerWidth, innerHeight, false);
   camera.aspect = innerWidth / innerHeight;
+  camera.fov = camera.aspect < 0.8 ? 80 : 62;     // portrait phones: widen the view so the sub doesn't fill the screen
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize); resize();
